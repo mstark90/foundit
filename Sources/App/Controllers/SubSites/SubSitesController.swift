@@ -13,8 +13,9 @@ struct SubSitesController: RouteCollection {
 
     func getSiteByName(req: Request, name: String) async throws -> SubSite? {
         return try await SubSite.query(on: req.db(.mysql))
-            .filter(\.$name == name.lowercased())
-            .filter(\.$deletedAt != nil)
+            .group(.and) {
+                $0.filter(\.$name == name.lowercased()).filter(\.$deletedAt == nil)
+            }
             .first()
     }
 
@@ -40,14 +41,15 @@ struct SubSitesController: RouteCollection {
         let subSite: SubSite = try await self.getByName(req: req)
 
         let posts: [Post] = try await SubSitePost.query(on: req.db(.mysql))
-            .join(SubSite.self, on: \SubSitePost.$subsite.$id == \SubSite.$id)
-            .join(Post.self, on: \SubSitePost.$post.$id == \Post.$id)
-            .filter(SubSite.self, \.$id == subSite.id!)
-            .filter(Post.self, \.$deletedAt != nil)
             .with(\.$post)
+            .group(.and) {
+                $0.filter(\.$subsite.$id == subSite.id!).filter(\.post.$deletedAt == nil)
+            }
             .sort(Post.self, \.$id, .descending)
             .all()
-            .map { $0.post }
+            .map {
+                $0.post
+            }
 
         return posts;
     }
