@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "sourceLanguages": [
+                "swift"
+            ],
+            "name": "Debug App",
+            "program": "${workspaceFolder:foundit}/.build/debug/App",
+            "args": [],
+            "cwd": "${workspaceFolder:foundit}",
+            "preLaunchTask": "swift: Build Debug App"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "sourceLanguages": [
+                "swift"
+            ],
+            "name": "Release App",
+            "program": "${workspaceFolder:foundit}/.build/release/App",
+            "args": [],
+            "cwd": "${workspaceFolder:foundit}",
+            "preLaunchTask": "swift: Build Release App"
+        }
+    ]
+}
