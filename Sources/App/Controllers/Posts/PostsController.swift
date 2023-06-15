@@ -7,7 +7,7 @@ struct PostsController: RouteCollection {
     }
 
     func index(req: Request) async throws -> Main {
-        let main = Main(message: "Hello World!")
+        let main: Main = Main(message: "Hello World!")
 
         return main
     }

@@ -6,7 +6,16 @@ struct SubSitesController: RouteCollection {
         let mainRoutes: RoutesBuilder = routes.grouped("subsites")
         mainRoutes.get(use: index)
         mainRoutes.get(":name", use: getByName)
+        mainRoutes.get(":name", "posts", use: getPostsForSubSite)
+        mainRoutes.post(":name", "posts", use: createPostForSubSite)
         mainRoutes.post(use: create)
+    }
+
+    func getSiteByName(req: Request, name: String) async throws -> SubSite? {
+        return try await SubSite.query(on: req.db(.mysql))
+            .filter(\.$name == name.lowercased())
+            .filter(\.$deletedAt != nil)
+            .first()
     }
 
     func index(req: Request) async throws -> [SubSite] {
@@ -18,14 +27,74 @@ struct SubSitesController: RouteCollection {
             throw Abort(.badRequest)
         }
 
-        let subSite: SubSite? = try await SubSite.query(on: req.db(.mysql))
-            .filter(\.$name == name.lowercased()) .first()
+        let subSite: SubSite? = try await self.getSiteByName(req: req, name: name)
 
         if (subSite == nil) {
             throw Abort(.notFound)
         }
 
         return subSite!
+    }
+
+    func getPostsForSubSite(req: Request) async throws -> [Post] {
+        let subSite: SubSite = try await self.getByName(req: req)
+
+        let posts: [Post] = try await SubSitePost.query(on: req.db(.mysql))
+            .join(SubSite.self, on: \SubSitePost.$subsite.$id == \SubSite.$id)
+            .join(Post.self, on: \SubSitePost.$post.$id == \Post.$id)
+            .filter(SubSite.self, \.$id == subSite.id!)
+            .filter(Post.self, \.$deletedAt != nil)
+            .with(\.$post)
+            .sort(Post.self, \.$id, .descending)
+            .all()
+            .map { $0.post }
+
+        return posts;
+    }
+
+    func createPostForSubSite(req: Request) async throws -> Post {
+        guard let decodedRequest: PostRequest? = try req.content.decode(PostRequest.self) else {
+            throw Abort(.badRequest)
+        }
+
+        let createRequest: PostRequest = decodedRequest!;
+
+        let subSite: SubSite = try await self.getByName(req: req)
+
+        let post: Post = Post()
+
+        try await req.db.transaction { database in
+            post.content = createRequest.content
+            post.title = createRequest.title
+            
+            switch(createRequest.type.lowercased()) {
+                case "image":
+                    post.type = .IMAGE;
+                    break;
+                case "video":
+                    post.type = .VIDEO;
+                    break;
+                case "link":
+                    post.type = .LINK;
+                    break;
+                default:
+                    post.type = .POST;
+                    break;
+            }
+
+            post.creator = "test"
+            
+            try await post.save(on: database)
+
+            let subSitePost: SubSitePost = SubSitePost()
+
+            subSitePost.$post.id = post.id!;
+            subSitePost.$subsite.id = subSite.id!;
+
+            try await subSitePost.save(on: database)
+        }
+
+        return post
     }
 
     func create(req: Request) async throws -> SubSite {
@@ -35,8 +104,7 @@ struct SubSitesController: RouteCollection {
 
         let createRequest: SubSiteRequest = decodedRequest!;
 
-        let subSiteCheck: SubSite? = try await SubSite.query(on: req.db(.mysql))
-            .filter(\.$name == createRequest.name) .first()
+        let subSiteCheck: SubSite? = try await self.getSiteByName(req: req, name: createRequest.name)
 
         if (subSiteCheck != nil) {
             throw Abort(.conflict)
