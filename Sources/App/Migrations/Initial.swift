@@ -11,7 +11,7 @@ struct Initial: AsyncMigration {
             .field("creator", .sql(raw: "VARCHAR(100)"), .required)
             .field("created_at", .datetime, .required)
             .field("updated_at", .datetime, .required)
-            .field("deleted_at", .datetime, .required)
+            .field("deleted_at", .datetime)
             .create()
 
         try await database.schema("subsites")
@@ -23,7 +23,8 @@ struct Initial: AsyncMigration {
             .field("creator", .sql(raw: "VARCHAR(100)"), .required)
             .field("created_at", .datetime, .required)
             .field("updated_at", .datetime, .required)
-            .field("deleted_at", .datetime, .required)
+            .field("deleted_at", .datetime)
+            .unique(on: "name")
             .create()
 
         try await database.schema("subsite_posts")
