@@ -51,6 +51,74 @@ struct SubSitesController: RouteCollection {
     }
 
     func createPostForSubSite(req: Request) async throws -> Post {
+        if(req.headers.contentType == HTTPMediaType.formData) {
+            return try await self.createFilePost(req: req);
+        } else {
+            return try await self.createTextPost(req: req);
+        }
+    }
+
+    private func createFilePost(req: Request)  async throws -> Post {
+        guard let decodedRequest: PlayablePostRequest? = try req.content.decode(PlayablePostRequest.self) else {
+            throw Abort(.badRequest)
+        }
+
+        let createRequest: PlayablePostRequest = decodedRequest!;
+
+        let subSite: SubSite = try await self.getByName(req: req)
+
+        let post: Post = Post()
+
+        let path: String = req.application.directory.publicDirectory + createRequest.content.filename
+
+        req.application.fileio.openFile(path: path,
+                                           mode: .write,
+                                           flags: .allowFileCreation(posixMode: 0x744),
+                                           eventLoop: req.eventLoop)
+                .flatMap { handle in
+                    req.application.fileio.write(fileHandle: handle,
+                                                buffer: createRequest.content.data,
+                                                eventLoop: req.eventLoop)
+                        .flatMapThrowing { _ in
+                            try handle.close()
+                        }
+                }
+
+        try await req.db.transaction { database in
+            post.content = Environment.get("STORAGE_URL_BASE") ?? "" + "/" + createRequest.content.filename
+            post.title = createRequest.title
+            
+            switch(createRequest.type.lowercased()) {
+                case "image":
+                    post.type = .IMAGE;
+                    break;
+                case "video":
+                    post.type = .VIDEO;
+                    break;
+                case "link":
+                    post.type = .LINK;
+                    break;
+                default:
+                    post.type = .POST;
+                    break;
+            }
+
+            post.creator = "test"
+            
+            try await post.save(on: database)
+
+            let subSitePost: SubSitePost = SubSitePost()
+
+            subSitePost.$post.id = post.id!;
+            subSitePost.$subsite.id = subSite.id!;
+
+            try await subSitePost.save(on: database)
+        }
+
+        return post
+    }
+
+    private func createTextPost(req: Request) async throws -> Post {
         guard let decodedRequest: PostRequest? = try req.content.decode(PostRequest.self) else {
             throw Abort(.badRequest)
         }
