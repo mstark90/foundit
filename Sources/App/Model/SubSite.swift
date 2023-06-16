@@ -12,7 +12,7 @@ enum SubSiteVisibility: Int, Codable {
     case PRIVATE = 2
 }
 
-final class SubSite: Model, Content {
+final class SubSite: Model, Content, Deletable {
     static let schema: String = "subsites";
 
     @ID(custom: "subsite_id", generatedBy: .database)

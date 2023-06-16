@@ -42,8 +42,10 @@ struct SubSitesController: RouteCollection {
 
         let posts: [Post] = try await SubSitePost.query(on: req.db(.mysql))
             .with(\.$post)
+            .join(Post.self, on: \SubSitePost.$post.$id == \Post.$id)
             .group(.and) {
-                $0.filter(\.$subsite.$id == subSite.id!).filter(\.post.$deletedAt == nil)
+                $0.filter(\.$subsite.$id == subSite.id!)
+                .filter(Post.self, \.$deletedAt == nil)
             }
             .sort(Post.self, \.$id, .descending)
             .all()
