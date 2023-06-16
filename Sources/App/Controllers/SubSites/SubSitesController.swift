@@ -40,18 +40,12 @@ struct SubSitesController: RouteCollection {
     func getPostsForSubSite(req: Request) async throws -> [Post] {
         let subSite: SubSite = try await self.getByName(req: req)
 
-        let posts: [Post] = try await SubSitePost.query(on: req.db(.mysql))
-            .with(\.$post)
-            .join(Post.self, on: \SubSitePost.$post.$id == \Post.$id)
-            .group(.and) {
-                $0.filter(\.$subsite.$id == subSite.id!)
-                .filter(Post.self, \.$deletedAt == nil)
-            }
+        let posts: [Post] = try await Post.query(on: req.db(.mysql))
+            .join(SubSitePost.self, on: \Post.$id == \SubSitePost.$post.$id)
+            .filter(SubSitePost.self, \SubSitePost.$subsite.$id == subSite.id!)
+            .filter(Post.self, \.$deletedAt == nil)
             .sort(Post.self, \.$id, .descending)
             .all()
-            .map {
-                $0.post
-            }
 
         return posts;
     }
