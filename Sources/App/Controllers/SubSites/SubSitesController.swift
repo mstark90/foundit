@@ -58,6 +58,16 @@ struct SubSitesController: RouteCollection {
         }
     }
 
+    private func getFileExtension(_ name: String) -> String {
+        let start: String.Index? = name.lastIndex(of: ".");
+
+        if(start == nil) {
+            return "";
+        }
+
+        return String(name[start!...]);
+    }
+
     private func createFilePost(req: Request)  async throws -> Post {
         guard let decodedRequest: PlayablePostRequest? = try req.content.decode(PlayablePostRequest.self) else {
             throw Abort(.badRequest)
@@ -69,7 +79,11 @@ struct SubSitesController: RouteCollection {
 
         let post: Post = Post()
 
-        let path: String = req.application.directory.publicDirectory + createRequest.content.filename
+        let fileExt: String = self.getFileExtension(createRequest.content.filename);
+
+        let fileName: String = UUID().uuidString + fileExt
+
+        let path: String = Environment.get("STORAGE_LOCATION")! + "/" + fileName
 
         req.application.fileio.openFile(path: path,
                                            mode: .write,
@@ -85,22 +99,20 @@ struct SubSitesController: RouteCollection {
                 }
 
         try await req.db.transaction { database in
-            post.content = Environment.get("STORAGE_URL_BASE") ?? "" + "/" + createRequest.content.filename
+
+            let url: String = (Environment.get("STORAGE_URL_BASE") ?? "") + "/" + fileName
+            post.content = url
             post.title = createRequest.title
             
-            switch(createRequest.type.lowercased()) {
-                case "image":
+            switch(createRequest.content.contentType) {
+                case HTTPMediaType.jpeg, HTTPMediaType.gif, HTTPMediaType.png:
                     post.type = .IMAGE;
                     break;
-                case "video":
+                case HTTPMediaType.mpeg, HTTPMediaType.avi:
                     post.type = .VIDEO;
                     break;
-                case "link":
-                    post.type = .LINK;
-                    break;
                 default:
-                    post.type = .POST;
-                    break;
+                    throw Abort(.badRequest)
             }
 
             post.creator = "test"
