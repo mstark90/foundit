@@ -40,6 +40,8 @@ struct SubSitesController: RouteCollection {
     func getPostsForSubSite(req: Request) async throws -> [Post] {
         let subSite: SubSite = try await self.getByName(req: req)
 
+        try AccessValidator.validateRead(req: req, subsite: subSite)
+
         let posts: [Post] = try await Post.query(on: req.db(.mysql))
             .join(SubSitePost.self, on: \Post.$id == \SubSitePost.$post.$id)
             .filter(SubSitePost.self, \SubSitePost.$subsite.$id == subSite.id!)
